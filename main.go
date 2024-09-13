@@ -21,9 +21,10 @@ func main() {
 	go util.InitLog(cfg)
 
 	//mysql的连接字符串格式
+	//注意charset应该是utf8mb4而不是utf8mb4_general_ci,前者是字符集，后者是排序规则
 	//connString := "username:password@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4_general_ci"
 
-	connString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4_general_ci",
+	connString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4",
 		cfg.Database.UserId, cfg.Database.Password, cfg.Database.IP, cfg.Database.Port, cfg.Database.DB)
 
 	//建立SQLSever数据库连接：db
@@ -38,8 +39,8 @@ func main() {
 	defer mc.ClosePrepare()
 	//启动gin
 	r := gin.Default()
-	r.Use(cors.Default())                      //使用cors，解决跨域问题
-	store := cookie.NewStore([]byte("secret")) //根据配置的密钥初始化cookie
+	r.Use(cors.Default())                                  //使用cors，解决跨域问题
+	store := cookie.NewStore([]byte(cfg.Server.CookieKey)) //根据配置的密钥初始化cookie
 	r.Use(sessions.Sessions("mysession", store))
 	//
 	SetGinRouterByJson(r, mc) //返回json数据，前端后端分离，后端只返回数据，前端不管
