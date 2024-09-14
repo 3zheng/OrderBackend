@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -8,23 +9,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func profileHandler(c *gin.Context) {
-	session := sessions.Default(c)
-	user := session.Get("user")
-	if user == nil {
-		c.JSON(401, gin.H{"message": "未授权"})
-		return
-	}
-	c.JSON(200, gin.H{"user": user})
-}
-
 // 需要登录才能访问的中间件
 func authRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
 		user := session.Get("user")
 		if user == nil {
-			c.JSON(401, gin.H{"message": "未授权", "success": "false"})
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "未授权", "success": "false"})
 			c.Abort()
 			return
 		}
@@ -52,22 +43,6 @@ func SelectResponseJson[T any](c *gin.Context, datas []*T) {
 
 // 返回内容为json格式的字符串
 func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
-	r.GET("/api/address", authRequired(), func(c *gin.Context) {
-		log.Println("/address GET require")
-		var req BackendUser
-		var datas []*BackendUser
-		req.Address = c.QueryArray("address")
-		req.UserName = c.Query("userName")
-		datas = append(datas, &req)
-		ok := mc.UpdateDataBase(&datas)
-		var res Response
-		if ok {
-			res.Success = "true" //校验成功
-		} else {
-			res.Success = "false" //校验失败
-		}
-		c.JSON(http.StatusOK, res)
-	})
 	r.GET("/api/login", func(c *gin.Context) {
 		log.Println("/login POST require")
 		var req BackendUser
@@ -91,5 +66,54 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 			log.Printf("name=%s,passwd=%s验证失败", req.UserName, req.Password)
 			c.JSON(http.StatusOK, res)
 		}
+	})
+	r.GET("/api/address", authRequired(), func(c *gin.Context) {
+		log.Println("/address GET require")
+		var req BackendUser
+		var datas []*BackendUser
+		req.Address = c.QueryArray("address")
+		req.UserName = c.Query("userName")
+		datas = append(datas, &req)
+		ok := mc.UpdateDataBase(&datas)
+		var res Response
+		if ok {
+			res.Success = "true" //校验成功
+		} else {
+			res.Success = "false" //校验失败
+		}
+		c.JSON(http.StatusOK, res)
+	})
+	r.GET("/api/order", authRequired(), func(c *gin.Context) {
+		log.Println("/order GET require")
+		var datas []*BackendOrder
+		userID := c.Query("userid")
+		ok := mc.GetMemoryCache(&datas, userID)
+		var res Response
+		if ok {
+			res.Success = "true" //校验成功
+			res.AnyBody = datas
+		} else {
+			res.Success = "false" //校验失败
+		}
+		c.JSON(http.StatusOK, res)
+	})
+	r.POST("/api/order", authRequired(), func(c *gin.Context) {
+		log.Println("/order POST require")
+		var datas []*BackendOrder
+		op := c.PostForm("operation")
+		orders := c.PostFormArray("orders")
+		for _, v := range orders {
+			//JSON字符串反序列化成结构体
+			data = new(BackendOrder)
+			err := json.Unmarshal([]byte(v), data)
+		}
+
+		var res Response
+		if ok {
+			res.Success = "true" //校验成功
+		} else {
+			res.Success = "false" //校验失败
+		}
+		c.JSON(http.StatusOK, res)
 	})
 }
