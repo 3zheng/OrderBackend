@@ -39,7 +39,10 @@ func main() {
 	defer mc.ClosePrepare()
 	//启动gin
 	r := gin.Default()
-	r.Use(cors.Default())                                  //使用cors，解决跨域问题
+	r.Use(cors.Default()) //使用cors，解决跨域问题
+	if cfg.Server.CookieKey == "" {
+		cfg.Server.CookieKey = "secret-key"
+	}
 	store := cookie.NewStore([]byte(cfg.Server.CookieKey)) //根据配置的密钥初始化cookie
 	r.Use(sessions.Sessions("mysession", store))
 	//

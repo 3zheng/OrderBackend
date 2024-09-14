@@ -76,7 +76,7 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		req.Password = c.Query("password") //
 		var res Response
 		var datas []*BackendUser
-		datas = mc.GetBackendUser(req)
+		mc.GetMemoryCache(&datas, req.UserName, req.Password)
 		res.AnyBody = datas
 		if len(datas) != 0 {
 			res.Success = "true" //校验成功
