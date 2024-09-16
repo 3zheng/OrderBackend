@@ -74,7 +74,7 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		req.Address = c.QueryArray("address")
 		req.UserName = c.Query("userName")
 		datas = append(datas, &req)
-		ok := mc.UpdateDataBase(&datas)
+		ok := mc.SetMemoryCache(&datas)
 		var res Response
 		if ok {
 			res.Success = "true" //校验成功
@@ -104,10 +104,14 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		orders := c.PostFormArray("orders")
 		for _, v := range orders {
 			//JSON字符串反序列化成结构体
-			data = new(BackendOrder)
-			err := json.Unmarshal([]byte(v), data)
+			data := new(BackendOrder)
+			if err := json.Unmarshal([]byte(v), data); err != nil {
+				log.Println("JSON反序列化BackendOrder错误:", err)
+				continue
+			}
+			datas = append(datas, data)
 		}
-
+		ok := mc.SetMemoryCache(datas, op)
 		var res Response
 		if ok {
 			res.Success = "true" //校验成功

@@ -140,7 +140,7 @@ func (mc *MemoryCache) GetMemoryCache(data interface{}, parameters ...string) bo
 	return true
 }
 
-func (mc *MemoryCache) UpdateDataBase(data interface{}, parameters ...string) bool {
+func (mc *MemoryCache) SetMemoryCache(data interface{}, parameters ...string) bool {
 	if mc.db == nil {
 		log.Println("MemoryCache的数据库实例为空")
 		return false
@@ -336,7 +336,7 @@ func (mc *MemoryCache) InsertBackendOrder(param BackendOrder) bool {
 	//返回的数据集
 	stmt, ok := mc.StmtMap["InsertBackendOrder"]
 	if !ok {
-		log.Println("找不到")
+		log.Println("InsertBackendOrder找不到stmt")
 		return false
 	}
 
