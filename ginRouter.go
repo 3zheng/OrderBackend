@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -10,8 +10,13 @@ import (
 )
 
 // 需要登录才能访问的中间件
-func authRequired() gin.HandlerFunc {
+func authRequired(mode string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if mode == "debug" {
+			log.Println("debug模式不需要登录验证")
+			c.Next()
+			return
+		}
 		session := sessions.Default(c)
 		user := session.Get("user")
 		if user == nil {
@@ -67,7 +72,7 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 			c.JSON(http.StatusOK, res)
 		}
 	})
-	r.GET("/api/address", authRequired(), func(c *gin.Context) {
+	r.GET("/api/address", authRequired(mc.Config.Mode), func(c *gin.Context) {
 		log.Println("/address GET require")
 		var req BackendUser
 		var datas []*BackendUser
@@ -83,7 +88,7 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		}
 		c.JSON(http.StatusOK, res)
 	})
-	r.GET("/api/order", authRequired(), func(c *gin.Context) {
+	r.GET("/api/order", authRequired(mc.Config.Mode), func(c *gin.Context) {
 		log.Println("/order GET require")
 		var datas []*BackendOrder
 		userID := c.Query("userid")
@@ -97,27 +102,40 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		}
 		c.JSON(http.StatusOK, res)
 	})
-	r.POST("/api/order", authRequired(), func(c *gin.Context) {
-		log.Println("/order POST require")
+	r.POST("/api/order", authRequired(mc.Config.Mode), func(c *gin.Context) {
+		rd, _ := c.GetRawData()
+		log.Println("/order POST require, rawData = ", string(rd))
 		var datas []*BackendOrder
-		op := c.PostForm("operation")
-		orders := c.PostFormArray("orders")
-		for _, v := range orders {
-			//JSON字符串反序列化成结构体
-			data := new(BackendOrder)
-			if err := json.Unmarshal([]byte(v), data); err != nil {
-				log.Println("JSON反序列化BackendOrder错误:", err)
-				continue
-			}
-			datas = append(datas, data)
+		//ok := ReadOrderPostFormdata(c)
+		req := struct {
+			op    string          `json:"operation"`
+			datas []*BackendOrder `json:"orders"`
+		}{}
+		if err := c.BindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 		}
-		ok := mc.SetMemoryCache(datas, op)
+
+		ok := mc.SetMemoryCache(&req.datas, req.op)
 		var res Response
+		res.AnyBody = datas
 		if ok {
 			res.Success = "true" //校验成功
 		} else {
 			res.Success = "false" //校验失败
+
 		}
 		c.JSON(http.StatusOK, res)
 	})
+}
+
+func ReadOrderPostFormdata(c *gin.Context) bool {
+	//读取表单数据
+	op := c.PostForm("operation")
+	for i := 0; i < 10; i++ {
+		id := c.PostForm(fmt.Sprintf("orders[%d][id]", i))
+		log.Println("id = ", id)
+	}
+	log.Println("op = ", op)
+	return true
 }
