@@ -1,13 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
+
+func PrintRawData(c *gin.Context) {
+	rd, _ := c.GetRawData()
+	log.Println("/order POST require, rawData = ", string(rd))
+	// 将原始数据重新写回请求体，这样后续 c.BindJSON() 可以正常工作, 因为GetRawData读取一次后就body数据就被消费掉了
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(rd))
+}
 
 // 需要登录才能访问的中间件
 func authRequired(mode string) gin.HandlerFunc {
@@ -103,20 +112,22 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		c.JSON(http.StatusOK, res)
 	})
 	r.POST("/api/order", authRequired(mc.Config.Mode), func(c *gin.Context) {
-		rd, _ := c.GetRawData()
-		log.Println("/order POST require, rawData = ", string(rd))
+		if mc.Config.Mode == "debug" {
+			PrintRawData(c) //打印原始数据
+		}
 		var datas []*BackendOrder
 		//ok := ReadOrderPostFormdata(c)
+		//变量名必须大写，因为会被外部包c.BindJSON调用,如果是小写将读取不到数据
 		req := struct {
-			op    string          `json:"operation"`
-			datas []*BackendOrder `json:"orders"`
+			Op    string          `json:"operation"`
+			Datas []*BackendOrder `json:"orders"`
 		}{}
 		if err := c.BindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		ok := mc.SetMemoryCache(&req.datas, req.op)
+		ok := mc.SetMemoryCache(&req.Datas, req.Op)
 		var res Response
 		res.AnyBody = datas
 		if ok {

@@ -342,7 +342,8 @@ func (mc *MemoryCache) InsertBackendOrder(param BackendOrder) bool {
 
 	//执行SQL语句strsql = "INSERT backend_orders (user_name,user_id,address, product_id,sub_category, product_num, order_status, order_date) VALUES(?,  ?,  ?,  ?,  ?,  ?,  ?, CAST(? AS DATETIME))"
 	//传递 user_name, user_id, address, product_id, sub_category, product_num,order_status,order_date 参数
-	result, err := stmt.Exec(param.RemarkName, param.ProductNum, param.Status, param.UserID, param.OrderID)
+	result, err := stmt.Exec(param.RemarkName, param.UserID, param.Address, param.ProductID,
+		param.SubCategory, param.ProductNum, 0, param.OrderDate) //order_status为0，新订单的状态都是0
 	if err != nil {
 		log.Println("Error executing statement:", err)
 		return false
@@ -354,7 +355,7 @@ func (mc *MemoryCache) InsertBackendOrder(param BackendOrder) bool {
 		return false
 	}
 
-	log.Printf("SetBaBackendOrder Address=%s, ProductNum=%d, Status=%d, UserID=%d, OrderID=%d Rows affected: %d\n",
+	log.Printf("InsertBackendOrder Address=%s, ProductNum=%d, Status=%d, UserID=%d, OrderID=%d Rows affected: %d\n",
 		param.Address, param.ProductNum, param.Status, param.UserID, param.OrderID, rowsAffected)
 	return true
 }
