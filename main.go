@@ -24,7 +24,7 @@ func main() {
 	//注意charset应该是utf8mb4而不是utf8mb4_general_ci,前者是字符集，后者是排序规则
 	//connString := "username:password@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4_general_ci"
 
-	connString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4",
+	connString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=true",
 		cfg.Database.UserId, cfg.Database.Password, cfg.Database.IP, cfg.Database.Port, cfg.Database.DB)
 
 	//建立SQLSever数据库连接：db

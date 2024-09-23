@@ -41,6 +41,14 @@ func (mc *MemoryCache) PrepareDBSql() {
 	var stmt *sql.Stmt
 	var err error
 	var strsql string
+	//测试能不能直接用time.Time类型读取MySQL的datetime类型
+	strsql = "SELECT  `order_date` from backend_orders"
+	stmt, err = mc.db.Prepare(strsql)
+	if err != nil {
+		log.Println("Prepare failed:", err.Error())
+		return
+	}
+	mc.StmtMap["GetTest"] = stmt
 	//编写查询语句，取后台用户，校验密码
 	strsql = "SELECT  `user_name`,  `password`,  `user_id`, `remark_name`, " +
 		"`address` " + //最后一个字段是没有逗号的
@@ -155,7 +163,8 @@ func (mc *MemoryCache) SetMemoryCache(data interface{}, parameters ...string) bo
 				for _, add := range bu.Address {
 					address += add
 				}
-				log.Printf("SetBackendUser failed: username=%s, address=%s", bu.UserName, address)
+				log.Printf("SetBackendUser failed: userid=%d, username=%s, address=%s",
+					bu.UserID, bu.UserName, address)
 				return false
 			}
 		}
@@ -186,6 +195,33 @@ func (mc *MemoryCache) SetMemoryCache(data interface{}, parameters ...string) bo
 		return false
 	}
 	return true
+}
+
+func (mc *MemoryCache) GetTest() []string {
+	//返回的数据集
+	var rowsData []string
+	stmt, ok := mc.StmtMap["GetTest"]
+	if !ok {
+		log.Println("stmt not found: GetTest")
+		return rowsData
+	}
+	//执行查询语句"SELECT  `user_name`,  `password`,  `user_id`, `remark_name`, `address` FROM `backend_user` where `user_name` = ? and `password` = ?"
+	//传入参数是user_name和password
+	rows, err := stmt.Query()
+	if err != nil {
+		log.Println("Query failed:", err.Error())
+		return nil
+	}
+	//将数据读取到实体中
+	for rows.Next() {
+		var dt time.Time
+		//其中一个字段的信息 ， 如果要获取更多，就在后面增加：rows.Scan(&row.Name,&row.Id)
+		rows.Scan(&dt)
+		// 将 JSON 字符串反序列化为结构体
+		data := dt.Format(time.DateTime)
+		rowsData = append(rowsData, data)
+	}
+	return rowsData
 }
 
 type BackendUser struct {
@@ -278,9 +314,9 @@ type BackendOrder struct {
 func (mc *MemoryCache) GetBackendOrder(param BackendOrder) [](*BackendOrder) {
 	//返回的数据集
 	var rowsData [](*BackendOrder)
-	stmt, ok := mc.StmtMap["GetBackendUser"]
+	stmt, ok := mc.StmtMap["GetBackendOrder"]
 	if !ok {
-		log.Println("stmt not found: GetBackendUser")
+		log.Println("stmt not found: GetBackendOrder")
 		return rowsData
 	}
 	// 执行查询语句 "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, `product_id`, `sub_category`, `product_num`, `order_status`, `order_date` where `user_id` = ? "

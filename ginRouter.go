@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -81,22 +82,6 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 			c.JSON(http.StatusOK, res)
 		}
 	})
-	r.GET("/api/address", authRequired(mc.Config.Mode), func(c *gin.Context) {
-		log.Println("/address GET require")
-		var req BackendUser
-		var datas []*BackendUser
-		req.Address = c.QueryArray("address")
-		req.UserName = c.Query("userName")
-		datas = append(datas, &req)
-		ok := mc.SetMemoryCache(&datas)
-		var res Response
-		if ok {
-			res.Success = "true" //校验成功
-		} else {
-			res.Success = "false" //校验失败
-		}
-		c.JSON(http.StatusOK, res)
-	})
 	r.GET("/api/order", authRequired(mc.Config.Mode), func(c *gin.Context) {
 		log.Println("/order GET require")
 		var datas []*BackendOrder
@@ -135,6 +120,28 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		} else {
 			res.Success = "false" //校验失败
 
+		}
+		c.JSON(http.StatusOK, res)
+	})
+	r.POST("/api/userinfo", authRequired(mc.Config.Mode), func(c *gin.Context) {
+		log.Println("/userinfo POST require")
+		var req BackendUser
+		var datas []*BackendUser
+		var err error
+		if req.UserID, err = strconv.Atoi(c.PostForm("userid")); err != nil {
+			log.Println("/userinfo req.UserID error:", err)
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		req.Address = c.PostFormArray("address")
+		req.UserName = c.Query("username")
+		datas = append(datas, &req)
+		ok := mc.SetMemoryCache(&datas)
+		var res Response
+		if ok {
+			res.Success = "true" //校验成功
+		} else {
+			res.Success = "false" //校验失败
 		}
 		c.JSON(http.StatusOK, res)
 	})
