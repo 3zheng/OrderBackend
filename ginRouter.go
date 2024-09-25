@@ -58,18 +58,18 @@ func SelectResponseJson[T any](c *gin.Context, datas []*T) {
 
 // 返回内容为json格式的字符串
 func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
-	r.GET("/api/login", func(c *gin.Context) {
+	r.POST("/api/login", func(c *gin.Context) {
 		log.Println("/login POST require")
 		var req BackendUser
 		//username := c.PostForm("username") POST请求的话使用PostForm
-		req.UserName = c.Query("userName") //获取参数
-		req.Password = c.Query("password") //
+		req.UserName = c.PostForm("UserName") //获取参数
+		req.Password = c.PostForm("Password") //
 		var res Response
 		var datas []*BackendUser
 		mc.GetMemoryCache(&datas, req.UserName, req.Password)
-		res.AnyBody = datas
 		if len(datas) != 0 {
 			res.Success = "true" //校验成功
+			res.AnyBody = datas[0]
 			log.Printf("name=%s,passwd=%s通过验证", req.UserName, req.Password)
 			//如果通过验证需要保存session
 			session := sessions.Default(c)
@@ -103,16 +103,16 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		var datas []*BackendOrder
 		//ok := ReadOrderPostFormdata(c)
 		//变量名必须大写，因为会被外部包c.BindJSON调用,如果是小写将读取不到数据
-		req := struct {
+		jreq := struct {
 			Op    string          `json:"operation"`
 			Datas []*BackendOrder `json:"orders"`
 		}{}
-		if err := c.BindJSON(&req); err != nil {
+		if err := c.BindJSON(&jreq); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		ok := mc.SetMemoryCache(&req.Datas, req.Op)
+		ok := mc.SetMemoryCache(&jreq.Datas, jreq.Op)
 		var res Response
 		res.AnyBody = datas
 		if ok {
@@ -124,6 +124,9 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		c.JSON(http.StatusOK, res)
 	})
 	r.POST("/api/userinfo", authRequired(mc.Config.Mode), func(c *gin.Context) {
+		if mc.Config.Mode == "debug" {
+			PrintRawData(c) //打印原始数据
+		}
 		log.Println("/userinfo POST require")
 		var req BackendUser
 		var datas []*BackendUser
@@ -133,10 +136,40 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
-		req.Address = c.PostFormArray("address")
-		req.UserName = c.Query("username")
+		req.Address = c.PostFormArray("address[]")
+		req.RemarkName = c.PostForm("username") //传递的其实是备用名，用户名是不可修改的
 		datas = append(datas, &req)
-		ok := mc.SetMemoryCache(&datas)
+		ok := mc.SetMemoryCache(&datas, "userinfo")
+		var res Response
+		if ok {
+			res.Success = "true" //校验成功
+		} else {
+			res.Success = "false" //校验失败
+		}
+		c.JSON(http.StatusOK, res)
+	})
+	r.POST("/api/favorite", authRequired(mc.Config.Mode), func(c *gin.Context) {
+		if mc.Config.Mode == "debug" {
+			PrintRawData(c) //打印原始数据
+		}
+		log.Println("/favorite POST require")
+		var datas []*BackendUser
+		//ok := ReadOrderPostFormdata(c)
+		//变量名必须大写，因为会被外部包c.BindJSON调用,如果是小写将读取不到数据
+		jreq := struct {
+			Op       string            `json:"operation"`
+			UserID   int               `json:"UserID"`
+			Favorite map[string]string `json:"Favorite"`
+		}{}
+		if err := c.BindJSON(&jreq); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		var req1 BackendUser
+		req1.UserID = jreq.UserID
+		req1.Favorite = jreq.Favorite
+		datas = append(datas, &req1)
+		ok := mc.SetMemoryCache(&datas, jreq.Op)
 		var res Response
 		if ok {
 			res.Success = "true" //校验成功

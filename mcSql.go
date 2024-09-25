@@ -51,7 +51,7 @@ func (mc *MemoryCache) PrepareDBSql() {
 	mc.StmtMap["GetTest"] = stmt
 	//编写查询语句，取后台用户，校验密码
 	strsql = "SELECT  `user_name`,  `password`,  `user_id`, `remark_name`, " +
-		"`address` " + //最后一个字段是没有逗号的
+		"`address`, `favorite` " + //最后一个字段是没有逗号的
 		" FROM `backend_users` " +
 		" where `user_name` = ? and `password` = ?"
 	stmt, err = mc.db.Prepare(strsql)
@@ -63,19 +63,29 @@ func (mc *MemoryCache) PrepareDBSql() {
 	//更新backend_users
 	strsql = "UPDATE `backend_users` " +
 		" set `address` = ?, `remark_name` = ? " +
-		" where `user_name` = ? "
+		" where `user_id` = ? "
 	stmt, err = mc.db.Prepare(strsql)
 	if err != nil {
 		log.Println("Prepare failed:", err.Error())
 		return
 	}
-	mc.StmtMap["SetBackendUser"] = stmt
+	mc.StmtMap["SetBackendUserUserInfo"] = stmt
+	//更新backend_users的favorite字段
+	strsql = "UPDATE `backend_users` " +
+		" set `favorite` = ?" +
+		" where `user_id` = ? "
+	stmt, err = mc.db.Prepare(strsql)
+	if err != nil {
+		log.Println("Prepare failed:", err.Error())
+		return
+	}
+	mc.StmtMap["SetBackendUserFavorite"] = stmt
 	//查询backend_orders
 	strsql = "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, " +
 		"`product_id`, `sub_category`, `product_num`, `order_status`, " +
 		"`order_date` " + //最后一个字段是没有逗号的
 		" FROM `backend_orders` " +
-		" where `user_id` = ? "
+		" where `user_id` = ? order by `order_date` desc"
 	stmt, err = mc.db.Prepare(strsql)
 	if err != nil {
 		log.Println("Prepare failed:", err.Error())
@@ -84,9 +94,8 @@ func (mc *MemoryCache) PrepareDBSql() {
 	mc.StmtMap["GetBackendOrder"] = stmt
 	//更新backend_orders
 	strsql = "UPDATE `backend_orders` set " +
-		"`address` = ?, `product_num` = ?, " +
 		"`order_status` = ? " + //最后一个字段是没有逗号的
-		" where `user_id` = ? and `order_id` = ?"
+		" where  `order_id` = ?"
 	stmt, err = mc.db.Prepare(strsql)
 	if err != nil {
 		log.Println("Prepare failed:", err.Error())
@@ -103,6 +112,15 @@ func (mc *MemoryCache) PrepareDBSql() {
 		return
 	}
 	mc.StmtMap["InsertBackendOrder"] = stmt
+	//删除backend_orders
+	strsql = "DELETE FROM backend_orders " +
+		" where  `order_id` = ?"
+	stmt, err = mc.db.Prepare(strsql)
+	if err != nil {
+		log.Println("Prepare failed:", err.Error())
+		return
+	}
+	mc.StmtMap["DeleteBackendOrder"] = stmt
 }
 
 // 关闭预编译SQL
@@ -156,18 +174,38 @@ func (mc *MemoryCache) SetMemoryCache(data interface{}, parameters ...string) bo
 	//先从数据库里取，全部数据都从内存中取
 	switch v := data.(type) {
 	case *[]*BackendUser:
-		//更新输入的[]BackendUser,不过通常只会有一个元素
-		for _, bu := range *v {
-			if !mc.SetBackendUser(*bu) {
-				var address string
-				for _, add := range bu.Address {
-					address += add
+		if len(parameters) < 1 {
+			return false
+		}
+		op := parameters[0]
+		switch op {
+		case "userinfo":
+			//更新输入的[]BackendUser,不过通常只会有一个元素
+			for _, bu := range *v {
+				if !mc.SetBackendUserUserInfo(*bu) {
+					var address string
+					for _, add := range bu.Address {
+						address += add
+					}
+					log.Printf("SetBackendUserUserInfo failed: userid=%d, username=%s, address=%s",
+						bu.UserID, bu.UserName, address)
+					return false
 				}
-				log.Printf("SetBackendUser failed: userid=%d, username=%s, address=%s",
-					bu.UserID, bu.UserName, address)
-				return false
+			}
+		case "favorite":
+			for _, bu := range *v {
+				if !mc.SetBackendUserFavorite(*bu) {
+					var loginfo string
+					for k, v := range bu.Favorite {
+						loginfo += "[key:" + k + ",value:" + v + "],"
+					}
+					log.Printf("SetBackendUserFavorite failed: userid=%d, username=%s, loginfo=%s",
+						bu.UserID, bu.UserName, loginfo)
+					return false
+				}
 			}
 		}
+
 	case *[]*BackendOrder:
 		if len(parameters) < 1 {
 			return false
@@ -226,11 +264,12 @@ func (mc *MemoryCache) GetTest() []string {
 
 type BackendUser struct {
 	//select 客户ID,客户姓名,月开始日期,月购买总金额,月购买次数 from NewKeyCustomers
-	UserID     int      `json:"ID"`         //ID
-	UserName   string   `json:"UserName"`   //用户名
-	Password   string   `json:"Password"`   //密码
-	Address    []string `json:"Address"`    //地址
-	RemarkName string   `json:"RemarkName"` //备注名
+	UserID     int               `json:"UserID"`     //ID
+	UserName   string            `json:"UserName"`   //用户名
+	Password   string            `json:"Password"`   //密码
+	Address    []string          `json:"Address"`    //地址
+	Favorite   map[string]string `json:"Favorite"`   //地址
+	RemarkName string            `json:"RemarkName"` //备注名
 }
 
 func (mc *MemoryCache) GetBackendUser(param BackendUser) [](*BackendUser) {
@@ -241,7 +280,7 @@ func (mc *MemoryCache) GetBackendUser(param BackendUser) [](*BackendUser) {
 		log.Println("stmt not found: GetBackendUser")
 		return rowsData
 	}
-	//执行查询语句"SELECT  `user_name`,  `password`,  `user_id`, `remark_name`, `address` FROM `backend_user` where `user_name` = ? and `password` = ?"
+	//执行查询语句"SELECT  `user_name`,  `password`,  `user_id`, `remark_name`, `address`, `favorite` FROM `backend_user` where `user_name` = ? and `password` = ?"
 	//传入参数是user_name和password
 	rows, err := stmt.Query(param.UserName, param.Password)
 	if err != nil {
@@ -251,23 +290,27 @@ func (mc *MemoryCache) GetBackendUser(param BackendUser) [](*BackendUser) {
 	//将数据读取到实体中
 	for rows.Next() {
 		data := new(BackendUser)
-		var jsonString []byte
+		var jsonStr1, jsonStr2 []byte
 		//其中一个字段的信息 ， 如果要获取更多，就在后面增加：rows.Scan(&row.Name,&row.Id)
 		rows.Scan(&data.UserName, &data.Password,
-			&data.UserID, &data.RemarkName, &jsonString)
+			&data.UserID, &data.RemarkName, &jsonStr1, &jsonStr2)
 		// 将 JSON 字符串反序列化为结构体
-		err := json.Unmarshal(jsonString, &data.Address)
+		err := json.Unmarshal(jsonStr1, &data.Address)
 		if err != nil {
-			log.Println("JSON反序列化错误")
+			log.Println("JSON反序列化data.Address错误")
+		}
+		err = json.Unmarshal(jsonStr2, &data.Favorite)
+		if err != nil {
+			log.Println("JSON反序列化data.Favorite错误")
 		}
 		rowsData = append(rowsData, data)
 	}
 	return rowsData
 }
 
-func (mc *MemoryCache) SetBackendUser(param BackendUser) bool {
+func (mc *MemoryCache) SetBackendUserUserInfo(param BackendUser) bool {
 	//返回的数据集
-	stmt, ok := mc.StmtMap["SetBackendUser"]
+	stmt, ok := mc.StmtMap["SetBackendUserUserInfo"]
 	if !ok {
 		log.Println("找不到")
 		return false
@@ -279,9 +322,9 @@ func (mc *MemoryCache) SetBackendUser(param BackendUser) bool {
 		log.Panicln("Address序列化JSON失败:", param.Address)
 		return false
 	}
-	// 执行SQL语句"update `backend_user` set `address` = ?, remark_name = ?  where `user_name` = ? "
+	// 执行SQL语句"update `backend_user` set `address` = ?, remark_name = ?  where `user_id` = ? "
 	//传递address和user_name参数
-	result, err := stmt.Exec(jsonData, param.RemarkName, param.UserName)
+	result, err := stmt.Exec(jsonData, param.RemarkName, param.UserID)
 	if err != nil {
 		log.Println("Error executing statement:", err)
 		return false
@@ -293,7 +336,39 @@ func (mc *MemoryCache) SetBackendUser(param BackendUser) bool {
 		return false
 	}
 
-	log.Printf("SetBackendUser address=%s, user_name=%s Rows affected: %d\n",
+	log.Printf("SetBackendUserUserInfo address=%s, user_name=%s Rows affected: %d\n",
+		jsonData, param.UserName, rowsAffected)
+	return true
+}
+func (mc *MemoryCache) SetBackendUserFavorite(param BackendUser) bool {
+	//返回的数据集
+	stmt, ok := mc.StmtMap["SetBackendUserFavorite"]
+	if !ok {
+		log.Println("找不到")
+		return false
+	}
+
+	//把[]string转为json格式
+	jsonData, err := json.Marshal(param.Favorite)
+	if err != nil {
+		log.Panicln("Address序列化JSON失败:", param.Favorite)
+		return false
+	}
+	// 执行SQL语句"update `backend_user` set `favorite` = ?  where `user_id` = ? "
+	//传递address和user_name参数
+	result, err := stmt.Exec(jsonData, param.UserID)
+	if err != nil {
+		log.Println("Error executing statement:", err)
+		return false
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Println("Error getting rows affected:", err)
+		return false
+	}
+
+	log.Printf("SetBackendUserFavorite address=%s, user_name=%s Rows affected: %d\n",
 		jsonData, param.UserName, rowsAffected)
 	return true
 }
@@ -349,9 +424,9 @@ func (mc *MemoryCache) SetBackendOrder(param BackendOrder) bool {
 		return false
 	}
 
-	// 执行SQL语句"UPDATE `backend_orders` set `address` = ?, `product_num` = ?, `order_status` = ?  where `user_id` = ? and `order_id` = ?"
+	// 执行SQL语句"UPDATE `backend_orders` set  `order_status` = ?  where  and `order_id` = ?"
 	//传递address, product_num, status, user_id, order_id参数
-	result, err := stmt.Exec(param.Address, param.ProductNum, param.Status, param.UserID, param.OrderID)
+	result, err := stmt.Exec(param.Status, param.OrderID)
 	if err != nil {
 		log.Println("Error executing statement:", err)
 		return false
@@ -397,5 +472,28 @@ func (mc *MemoryCache) InsertBackendOrder(param BackendOrder) bool {
 }
 
 func (mc *MemoryCache) DeleteBackendOrder(param BackendOrder) bool {
+	//返回的数据集
+	stmt, ok := mc.StmtMap["DeleteBackendOrder"]
+	if !ok {
+		log.Println("DeleteBackendOrder找不到stmt")
+		return false
+	}
+
+	//执行SQL语句strsql = "DELETE FROM backend_orders where  `order_id` = ?"
+	//传递 order_id 参数
+	result, err := stmt.Exec(param.OrderID)
+	if err != nil {
+		log.Println("Error executing statement:", err)
+		return false
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Println("Error getting rows affected:", err)
+		return false
+	}
+
+	log.Printf("DeleteBackendOrder Address=%s, ProductNum=%d, Status=%d, UserID=%d, OrderID=%d Rows affected: %d\n",
+		param.Address, param.ProductNum, param.Status, param.UserID, param.OrderID, rowsAffected)
 	return true
 }
