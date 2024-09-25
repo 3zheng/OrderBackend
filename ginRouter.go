@@ -86,7 +86,8 @@ func SetGinRouterByJson(r *gin.Engine, mc *MemoryCache) {
 		log.Println("/order GET require")
 		var datas []*BackendOrder
 		userID := c.Query("userid")
-		ok := mc.GetMemoryCache(&datas, userID)
+		volume := c.Query("volume")
+		ok := mc.GetMemoryCache(&datas, userID, volume)
 		var res Response
 		if ok {
 			res.Success = "true" //校验成功

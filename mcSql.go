@@ -91,7 +91,31 @@ func (mc *MemoryCache) PrepareDBSql() {
 		log.Println("Prepare failed:", err.Error())
 		return
 	}
-	mc.StmtMap["GetBackendOrder"] = stmt
+	mc.StmtMap["GetBackendOrderByUserID"] = stmt
+	//查询backend_orders, 获取所有数据
+	strsql = "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, " +
+		"`product_id`, `sub_category`, `product_num`, `order_status`, " +
+		"`order_date` " + //最后一个字段是没有逗号的
+		" FROM `backend_orders` " +
+		" order by `order_date` desc"
+	stmt, err = mc.db.Prepare(strsql)
+	if err != nil {
+		log.Println("Prepare failed:", err.Error())
+		return
+	}
+	mc.StmtMap["GetBackendOrderByAdmin"] = stmt
+	//查询backend_orders
+	strsql = "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, " +
+		"`product_id`, `sub_category`, `product_num`, `order_status`, " +
+		"`order_date` " + //最后一个字段是没有逗号的
+		" FROM `backend_orders` " +
+		" where `order_status` != 9 order by `order_date` desc"
+	stmt, err = mc.db.Prepare(strsql)
+	if err != nil {
+		log.Println("Prepare failed:", err.Error())
+		return
+	}
+	mc.StmtMap["GetBackendOrderByAdminUnsettled"] = stmt
 	//更新backend_orders
 	strsql = "UPDATE `backend_orders` set " +
 		"`order_status` = ? " + //最后一个字段是没有逗号的
@@ -150,7 +174,7 @@ func (mc *MemoryCache) GetMemoryCache(data interface{}, parameters ...string) bo
 		bu.Password = parameters[1]
 		*v = mc.GetBackendUser(bu)
 	case *[]*BackendOrder:
-		if len(parameters) < 1 {
+		if len(parameters) < 2 {
 			return false
 		}
 		var bo BackendOrder
@@ -159,7 +183,16 @@ func (mc *MemoryCache) GetMemoryCache(data interface{}, parameters ...string) bo
 		if err != nil {
 			return false
 		}
-		*v = mc.GetBackendOrder(bo)
+		volume := parameters[1]
+		switch volume {
+		case "": //没有参数
+			*v = mc.GetBackendOrderByUserID(bo)
+		case "admin_all":
+			*v = mc.GetBackendOrderByAdmin(bo)
+		case "admin_unsettled":
+			*v = mc.GetBackendOrderByAdminUnsettled(bo)
+		}
+
 	default:
 		log.Println("CheckUpdataCache无法匹配类型:", v)
 	}
@@ -386,17 +419,77 @@ type BackendOrder struct {
 	OrderDate   string `json:"OrderDate"`   //订单日期
 }
 
-func (mc *MemoryCache) GetBackendOrder(param BackendOrder) [](*BackendOrder) {
+func (mc *MemoryCache) GetBackendOrderByUserID(param BackendOrder) [](*BackendOrder) {
 	//返回的数据集
 	var rowsData [](*BackendOrder)
-	stmt, ok := mc.StmtMap["GetBackendOrder"]
+	stmt, ok := mc.StmtMap["GetBackendOrderByUserID"]
 	if !ok {
-		log.Println("stmt not found: GetBackendOrder")
+		log.Println("stmt not found: GetBackendOrderByUserID")
 		return rowsData
 	}
 	// 执行查询语句 "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, `product_id`, `sub_category`, `product_num`, `order_status`, `order_date` where `user_id` = ? "
 	// 传入参数是 user_id
 	rows, err := stmt.Query(param.UserID)
+	if err != nil {
+		log.Println("Query failed:", err.Error())
+		return nil
+	}
+	//将数据读取到实体中
+	for rows.Next() {
+		data := new(BackendOrder)
+		var dt time.Time
+		//其中一个字段的信息 ， 如果要获取更多，就在后面增加：rows.Scan(&row.Name,&row.Id)
+		rows.Scan(&data.OrderID, &data.RemarkName, &data.UserID, &data.Address,
+			&data.ProductID, &data.SubCategory, &data.ProductNum, &data.Status,
+			&dt)
+		data.OrderDate = dt.Format(time.DateTime)
+		// 将 JSON 字符串反序列化为字符串数组
+		rowsData = append(rowsData, data)
+	}
+	return rowsData
+}
+
+func (mc *MemoryCache) GetBackendOrderByAdmin(param BackendOrder) [](*BackendOrder) {
+	//返回的数据集
+	var rowsData [](*BackendOrder)
+	stmt, ok := mc.StmtMap["GetBackendOrderByAdmin"]
+	if !ok {
+		log.Println("stmt not found: GetBackendOrderByAdmin")
+		return rowsData
+	}
+	// 执行查询语句 "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, `product_id`, `sub_category`, `product_num`, `order_status`, `order_date` where `user_id` = ? "
+	// 传入参数是 user_id
+	rows, err := stmt.Query()
+	if err != nil {
+		log.Println("Query failed:", err.Error())
+		return nil
+	}
+	//将数据读取到实体中
+	for rows.Next() {
+		data := new(BackendOrder)
+		var dt time.Time
+		//其中一个字段的信息 ， 如果要获取更多，就在后面增加：rows.Scan(&row.Name,&row.Id)
+		rows.Scan(&data.OrderID, &data.RemarkName, &data.UserID, &data.Address,
+			&data.ProductID, &data.SubCategory, &data.ProductNum, &data.Status,
+			&dt)
+		data.OrderDate = dt.Format(time.DateTime)
+		// 将 JSON 字符串反序列化为字符串数组
+		rowsData = append(rowsData, data)
+	}
+	return rowsData
+}
+
+func (mc *MemoryCache) GetBackendOrderByAdminUnsettled(param BackendOrder) [](*BackendOrder) {
+	//返回的数据集
+	var rowsData [](*BackendOrder)
+	stmt, ok := mc.StmtMap["GetBackendOrderByAdminUnsettled"]
+	if !ok {
+		log.Println("stmt not found: GetBackendOrderByAdminUnsettled")
+		return rowsData
+	}
+	// 执行查询语句 "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, `product_id`, `sub_category`, `product_num`, `order_status`, `order_date` where `order_status` != 9 "
+	// 传入参数是 user_id
+	rows, err := stmt.Query()
 	if err != nil {
 		log.Println("Query failed:", err.Error())
 		return nil
