@@ -32,7 +32,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Open Connection failed:", err.Error())
 	}
-	log.Println("建立数据库连接")
+	log.Println("💻建立数据库连接")
 	defer db.Close()
 	mc := new(MemoryCache)
 	mc.InitMemoryCache(db, cfg)

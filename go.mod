@@ -3,14 +3,14 @@ module OrderBackend
 go 1.23.0
 
 require (
-	github.com/3zheng/go_util v0.1.5
+	github.com/3zheng/go_util v0.1.6
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-contrib/sessions v1.0.1
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-sql-driver/mysql v1.8.1
 )
 
-replace github.com/3zheng/go_util v0.1.5 => ../util
+//replace github.com/3zheng/go_util v0.1.6 => ../util
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
