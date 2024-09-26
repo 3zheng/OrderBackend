@@ -1,0 +1,12 @@
+[Unit]
+Description=orderBackend server
+
+[Service]
+Type=simple
+ExecStart=/home/zhibinwu82/workspace/orderBackend/OrderBackend -config /home/zhibinwu82/workspace/orderBackend/config.json
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
