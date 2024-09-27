@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 
 	util "github.com/3zheng/go_util"
 	"github.com/gin-contrib/cors"
@@ -15,11 +16,19 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+func BindGinLog(cfg util.Config, r *gin.Engine) {
+	ch := make(chan *os.File)
+	go util.InitLog(cfg, ch)
+	//每次换新的文件指针就重新设置gin的文件输出
+	for v := range ch {
+		log.Println("获取到新file:", v.Name())
+		r.Use(gin.LoggerWithWriter(v))
+	}
+}
+
 func main() {
 	defer util.Recovermain()
 	cfg := util.ReadConfigFile()
-	go util.InitLog(cfg)
-
 	//mysql的连接字符串格式
 	//注意charset应该是utf8mb4而不是utf8mb4_general_ci,前者是字符集，后者是排序规则
 	//connString := "username:password@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4_general_ci"
@@ -45,7 +54,8 @@ func main() {
 	}
 	store := cookie.NewStore([]byte(cfg.Server.CookieKey)) //根据配置的密钥初始化cookie
 	r.Use(sessions.Sessions("mysession", store))
-	//
+	go BindGinLog(cfg, r) //把gin的日志重定向到util的日志里
+	//go util.InitLog(cfg)
 	SetGinRouterByJson(r, mc) //返回json数据，前端后端分离，后端只返回数据，前端不管
 
 	log.Println("开始启动web服务")

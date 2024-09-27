@@ -37,7 +37,6 @@ func (mc *MemoryCache) PrepareDBSql() {
 	if mc.db == nil {
 		panic("数据库为空")
 	}
-
 }
 
 // 关闭预编译SQL
@@ -167,8 +166,9 @@ func (mc *MemoryCache) GetTest() []string {
 	var rowsData []string
 	stmt, ok := mc.StmtMap["GetTest"]
 	if !ok {
+		var err error
 		strsql := "SELECT  `order_date` from backend_orders"
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return nil
@@ -209,12 +209,13 @@ func (mc *MemoryCache) GetBackendUser(param BackendUser) [](*BackendUser) {
 	var rowsData [](*BackendUser)
 	stmt, ok := mc.StmtMap["GetBackendUser"]
 	if !ok {
+		var err error
 		//编写查询语句，取后台用户，校验密码
 		strsql := "SELECT  `user_name`,  `password`,  `user_id`, `remark_name`, " +
 			"`address`, `favorite` " + //最后一个字段是没有逗号的
 			" FROM `backend_users` " +
 			" where `user_name` = ? and `password` = ?"
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return nil
@@ -232,17 +233,22 @@ func (mc *MemoryCache) GetBackendUser(param BackendUser) [](*BackendUser) {
 	for rows.Next() {
 		data := new(BackendUser)
 		var jsonStr1, jsonStr2 []byte
+		//var RemarkName sql.NullString 如果存在空值会导致后续值无法读取
 		//其中一个字段的信息 ， 如果要获取更多，就在后面增加：rows.Scan(&row.Name,&row.Id)
 		rows.Scan(&data.UserName, &data.Password,
 			&data.UserID, &data.RemarkName, &jsonStr1, &jsonStr2)
 		// 将 JSON 字符串反序列化为结构体
-		err := json.Unmarshal(jsonStr1, &data.Address)
-		if err != nil {
-			log.Println("JSON反序列化data.Address错误")
+		if len(jsonStr1) != 0 {
+			err := json.Unmarshal(jsonStr1, &data.Address)
+			if err != nil {
+				log.Println("JSON反序列化data.Address错误")
+			}
 		}
-		err = json.Unmarshal(jsonStr2, &data.Favorite)
-		if err != nil {
-			log.Println("JSON反序列化data.Favorite错误")
+		if len(jsonStr2) != 0 {
+			err = json.Unmarshal(jsonStr2, &data.Favorite)
+			if err != nil {
+				log.Println("JSON反序列化data.Favorite错误")
+			}
 		}
 		rowsData = append(rowsData, data)
 	}
@@ -253,11 +259,12 @@ func (mc *MemoryCache) SetBackendUserUserInfo(param BackendUser) bool {
 	//返回的数据集
 	stmt, ok := mc.StmtMap["SetBackendUserUserInfo"]
 	if !ok {
+		var err error
 		//更新backend_users
 		strsql := "UPDATE `backend_users` " +
 			" set `address` = ?, `remark_name` = ? " +
 			" where `user_id` = ? "
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return false
@@ -293,11 +300,12 @@ func (mc *MemoryCache) SetBackendUserFavorite(param BackendUser) bool {
 	//返回的数据集
 	stmt, ok := mc.StmtMap["SetBackendUserFavorite"]
 	if !ok {
+		var err error
 		//更新backend_users的favorite字段
 		strsql := "UPDATE `backend_users` " +
 			" set `favorite` = ?" +
 			" where `user_id` = ? "
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return false
@@ -348,13 +356,14 @@ func (mc *MemoryCache) GetBackendOrderByUserID(param BackendOrder) [](*BackendOr
 	var rowsData [](*BackendOrder)
 	stmt, ok := mc.StmtMap["GetBackendOrderByUserID"]
 	if !ok {
+		var err error
 		//查询backend_orders
 		strsql := "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, " +
 			"`product_id`, `sub_category`, `product_num`, `order_status`, " +
 			"`order_date` " + //最后一个字段是没有逗号的
 			" FROM `backend_orders` " +
 			" where `user_id` = ? order by `order_date` desc"
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return nil
@@ -388,13 +397,14 @@ func (mc *MemoryCache) GetBackendOrderByAdmin(param BackendOrder) [](*BackendOrd
 	var rowsData [](*BackendOrder)
 	stmt, ok := mc.StmtMap["GetBackendOrderByAdmin"]
 	if !ok {
+		var err error
 		//查询backend_orders, 获取所有数据
 		strsql := "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, " +
 			"`product_id`, `sub_category`, `product_num`, `order_status`, " +
 			"`order_date` " + //最后一个字段是没有逗号的
 			" FROM `backend_orders` " +
 			" order by `order_date` desc"
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return nil
@@ -428,13 +438,14 @@ func (mc *MemoryCache) GetBackendOrderByAdminUnsettled(param BackendOrder) [](*B
 	var rowsData [](*BackendOrder)
 	stmt, ok := mc.StmtMap["GetBackendOrderByAdminUnsettled"]
 	if !ok {
+		var err error
 		//查询backend_orders
 		strsql := "SELECT  `order_id`,  `remark_name`,  `user_id`,  `address`, " +
 			"`product_id`, `sub_category`, `product_num`, `order_status`, " +
 			"`order_date` " + //最后一个字段是没有逗号的
 			" FROM `backend_orders` " +
 			" where `order_status` != 9 order by `order_date` desc"
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return nil
@@ -467,11 +478,12 @@ func (mc *MemoryCache) SetBackendOrder(param BackendOrder) bool {
 	//返回的数据集
 	stmt, ok := mc.StmtMap["SetBackendOrder"]
 	if !ok {
+		var err error
 		//更新backend_orders
 		strsql := "UPDATE `backend_orders` set " +
 			"`order_status` = ? " + //最后一个字段是没有逗号的
 			" where  `order_id` = ?"
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return false
@@ -502,11 +514,12 @@ func (mc *MemoryCache) InsertBackendOrder(param BackendOrder) bool {
 	//返回的数据集
 	stmt, ok := mc.StmtMap["InsertBackendOrder"]
 	if !ok {
+		var err error
 		//新增backend_orders
 		strsql := "INSERT backend_orders" +
 			"(remark_name,user_id,address, product_id,sub_category, product_num,order_status, order_date)" +
 			"VALUES(?,  ?,  ?,  ?,  ?,  ?,  ?, CAST(? AS DATETIME))"
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return false
@@ -538,10 +551,11 @@ func (mc *MemoryCache) DeleteBackendOrder(param BackendOrder) bool {
 	//返回的数据集
 	stmt, ok := mc.StmtMap["DeleteBackendOrder"]
 	if !ok {
+		var err error
 		//删除backend_orders
 		strsql := "DELETE FROM backend_orders " +
 			" where  `order_id` = ?"
-		stmt, err := mc.db.Prepare(strsql)
+		stmt, err = mc.db.Prepare(strsql)
 		if err != nil {
 			log.Println("Prepare failed:", err.Error())
 			return false
