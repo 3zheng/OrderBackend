@@ -17,7 +17,7 @@
         "ip":"",
         "port":8889
     },
-	"MysqlConn":"root:wzblvroot+2s@tcp(127.0.0.1:3306)/wordpress?charset=utf8mb4_general_ci",
+	"MysqlConn":"root:password@tcp(127.0.0.1:3306)/wordpress?charset=utf8mb4_general_ci",
 
     "none":"没有意义的占位行,用于每行复制逗号用,简单注释也放可以放这里。\
             database config.user id是数据库的用户名, \
